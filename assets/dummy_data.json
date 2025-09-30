@@ -1,0 +1,96 @@
+{
+  "users": [
+    {
+      "id": "u1",
+      "name": "Alex Morgan",
+      "email": "alex.morgan@example.com",
+      "role": "Admin",
+      "password": "demo123",
+      "deleted": false
+    },
+    {
+      "id": "u2",
+      "name": "Jordan Lee",
+      "email": "jordan.lee@example.com",
+      "role": "Manager",
+      "password": "demo123",
+      "deleted": false
+    },
+    {
+      "id": "u3",
+      "name": "Taylor Reed",
+      "email": "taylor.reed@example.com",
+      "role": "Consultant",
+      "password": "demo123",
+      "deleted": false
+    }
+  ],
+  "clients": [
+    {
+      "id": "c1",
+      "name": "Acme Manufacturing, LLC",
+      "billing_email": "ap@acmemfg.com",
+      "terms": "Net 15",
+      "address": "123 Industrial Way, Raleigh, NC 27601",
+      "deleted": false
+    },
+    {
+      "id": "c2",
+      "name": "BlueWater Partners LP",
+      "billing_email": "ap@bluewaterlp.com",
+      "terms": "Net 30",
+      "address": "200 Harbor Dr, Charlotte, NC 28202",
+      "deleted": false
+    }
+  ],
+  "rates": [
+    {
+      "id": "r1",
+      "consultant_email": "taylor.reed@example.com",
+      "client_id": "c1",
+      "client_name": "Acme Manufacturing, LLC",
+      "rate": 200.0,
+      "effective_from": "2025-07-01"
+    },
+    {
+      "id": "r2",
+      "consultant_email": "taylor.reed@example.com",
+      "client_id": "c2",
+      "client_name": "BlueWater Partners LP",
+      "rate": 210.0,
+      "effective_from": "2025-07-01"
+    },
+    {
+      "id": "r3",
+      "consultant_email": "jordan.lee@example.com",
+      "client_id": "c1",
+      "client_name": "Acme Manufacturing, LLC",
+      "rate": 225.0,
+      "effective_from": "2025-07-01"
+    },
+    {
+      "id": "r4",
+      "consultant_email": "alex.morgan@example.com",
+      "client_id": "c1",
+      "client_name": "Acme Manufacturing, LLC",
+      "rate": 200.0,
+      "effective_from": "2025-07-01"
+    },
+    {
+      "id": "r5",
+      "consultant_email": "alex.morgan@example.com",
+      "client_id": "c2",
+      "client_name": "BlueWater Partners LP",
+      "rate": 210.0,
+      "effective_from": "2025-07-01"
+    }
+  ],
+  "settings": {
+    "rounding_minutes": 6,
+    "week_ending": "Sunday",
+    "timezone": "America/New_York",
+    "currency": "USD",
+    "company_name": "Halifax Time"
+  },
+  "time_entries": []
+}
