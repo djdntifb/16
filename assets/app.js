@@ -9,7 +9,8 @@ const state = {
   data: {},
   entries: [],
   lastInvoiceHTML: null,
-  reportRows: []
+  reportRows: [],
+  pendingInvoice: null
 };
 
 const $ = s => document.querySelector(s);
@@ -50,6 +51,10 @@ function saveAdminData() {
       settings: state.data.settings
     }));
   } catch (e) {}
+}
+
+function peekInvoiceNumber() {
+  return parseInt(localStorage.getItem(STORAGE_KEY_INV_NUM) || '1000', 10) + 1;
 }
 
 function nextInvoiceNumber() {
@@ -257,7 +262,7 @@ function saveStop() {
     user_email: state.currentUser.email,
     client_id:  state.timer.client,
     date, start: startStr, end: endStr, hours,
-    description: note, status: 'pending'
+    description: note, status: 'draft'
   });
   saveEntries();
 
@@ -288,6 +293,20 @@ document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (!$('#stop-modal').classList.contains('hidden'))  closeStopModal();
   if (!$('#admin-modal').classList.contains('hidden')) closeAdminModal();
+});
+
+// ─── Keyboard shortcut: Space to start/stop timer ─────────────────────────────
+
+document.addEventListener('keydown', e => {
+  if (e.code !== 'Space') return;
+  if (e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+  const tag = document.activeElement?.tagName;
+  if (['INPUT','TEXTAREA','SELECT','BUTTON'].includes(tag)) return;
+  if (!state.currentUser) return;
+  if ($('#timer-view')?.classList.contains('hidden')) return;
+  if (!$('#stop-modal')?.classList.contains('hidden')) return;
+  e.preventDefault();
+  startStopTimer();
 });
 
 window.addEventListener('click', e => {
@@ -330,7 +349,7 @@ function addManualEntry() {
     id: crypto.randomUUID ? crypto.randomUUID() : `e${Date.now()}`,
     user_email: state.currentUser.email,
     client_id: clientId,
-    date, start, end, hours, description: note, status: 'pending'
+    date, start, end, hours, description: note, status: 'draft'
   });
   saveEntries();
   $('#man-date').value = $('#man-start').value = $('#man-end').value = $('#man-note').value = '';
@@ -371,6 +390,18 @@ function renderTimesheet() {
   const tfoot = $('#timesheet-table tfoot');
   tbody.innerHTML = '';
 
+  // Update #ts-submit button
+  const draftEntries = mine.filter(e => e.status === 'draft');
+  const tsSubmitBtn = $('#ts-submit');
+  if (tsSubmitBtn) {
+    if (draftEntries.length > 0) {
+      tsSubmitBtn.textContent = `Submit ${draftEntries.length} Draft(s)`;
+      tsSubmitBtn.classList.remove('hidden');
+    } else {
+      tsSubmitBtn.classList.add('hidden');
+    }
+  }
+
   if (!mine.length) {
     tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#A6B2AD">No entries for this period.</td></tr>';
     tfoot.innerHTML = '';
@@ -380,6 +411,7 @@ function renderTimesheet() {
   let total = 0;
   mine.forEach(e => {
     total += e.hours;
+    const canEdit = e.status === 'draft' || e.status === 'pending';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${e.date}</td>
@@ -388,8 +420,9 @@ function renderTimesheet() {
       <td>${e.hours.toFixed(2)}</td>
       <td><span class="badge ${e.status}">${e.status}</span></td>
       <td>${escHtml(e.description)}</td>
-      <td>${e.status === 'pending'
-        ? `<button class="ghost" style="padding:4px 10px;font-size:13px" onclick="deleteEntry('${e.id}')">Delete</button>`
+      <td>${canEdit
+        ? `<button class="ghost" style="padding:4px 10px;font-size:13px" onclick="openEditEntry('${e.id}')">Edit</button>
+           <button class="ghost" style="padding:4px 10px;font-size:13px;border-color:#A24B4B;color:#E07070" onclick="deleteEntry('${e.id}')">Delete</button>`
         : ''}</td>`;
     tbody.appendChild(tr);
   });
@@ -404,6 +437,83 @@ function deleteEntry(id) {
   state.entries = state.entries.filter(e => e.id !== id);
   saveEntries();
   renderTimesheet();
+}
+
+// ─── Edit entry ───────────────────────────────────────────────────────────────
+
+function openEditEntry(id) {
+  const entry = state.entries.find(e => e.id === id);
+  if (!entry) return;
+  if (entry.status !== 'draft' && entry.status !== 'pending') return;
+
+  const clients = (state.data.clients || []).filter(c => !c.deleted);
+  const clientOptions = clients.map(c =>
+    `<option value="${escHtml(c.id)}"${c.id === entry.client_id ? ' selected' : ''}>${escHtml(c.name)}</option>`
+  ).join('');
+
+  const bodyHtml = `
+    <div class="grid-2" style="margin-bottom:12px">
+      <div><label>Date</label><input id="ee-date" type="date" value="${escHtml(entry.date)}"></div>
+      <div><label>Client</label><select id="ee-client">${clientOptions}</select></div>
+    </div>
+    <div class="grid-2" style="margin-bottom:12px">
+      <div><label>Start</label><input id="ee-start" type="time" value="${escHtml(entry.start)}"></div>
+      <div><label>End</label><input id="ee-end" type="time" value="${escHtml(entry.end)}"></div>
+    </div>
+    <div style="margin-bottom:12px"><label>Description</label><textarea id="ee-desc" rows="3">${escHtml(entry.description)}</textarea></div>`;
+
+  openAdminModal('Edit Entry', bodyHtml, () => {
+    const date     = $('#ee-date').value;
+    const start    = $('#ee-start').value;
+    const end      = $('#ee-end').value;
+    const clientId = $('#ee-client').value;
+    const desc     = $('#ee-desc').value.trim();
+
+    if (!date || !start || !end || !clientId) return alert('Please fill in all fields.');
+    if (!desc) return alert('Please enter a description.');
+    if (timeToMs(end) <= timeToMs(start)) return alert('End time must be after start time.');
+
+    if (hasOverlap(date, start, end, id)) {
+      if (!confirm(`This overlaps an existing entry on ${date}. Save anyway?`)) return;
+    }
+
+    const rawH  = (timeToMs(end) - timeToMs(start)) / 3600000;
+    const hours = roundHours(rawH);
+
+    entry.date        = date;
+    entry.start       = start;
+    entry.end         = end;
+    entry.client_id   = clientId;
+    entry.description = desc;
+    entry.hours       = hours;
+
+    saveEntries();
+    closeAdminModal();
+    renderTimesheet();
+    toast('Entry updated');
+  });
+}
+
+// ─── Submit week for approval ──────────────────────────────────────────────────
+
+function submitDrafts() {
+  const { start, end } = getPeriodRange($('#ts-period')?.value || 'month');
+  const drafts = state.entries.filter(e => {
+    if (e.user_email !== state.currentUser?.email) return false;
+    if (e.status !== 'draft') return false;
+    if (start && e.date < start) return false;
+    if (end   && e.date > end)   return false;
+    return true;
+  });
+
+  if (!drafts.length) return;
+
+  if (!confirm(`Submit ${drafts.length} draft entr${drafts.length === 1 ? 'y' : 'ies'} for approval?`)) return;
+
+  drafts.forEach(e => { e.status = 'pending'; });
+  saveEntries();
+  renderTimesheet();
+  toast(`${drafts.length} entr${drafts.length === 1 ? 'y' : 'ies'} submitted for approval`);
 }
 
 // ─── Approvals ────────────────────────────────────────────────────────────────
@@ -517,21 +627,13 @@ function setupInvoices() {
     const clientId = $('#invoice-client').value;
     const month    = $('#invoice-month').value;
     if (!clientId || !month) return alert('Please select a client and month.');
-    const { html, ids } = generateInvoice(clientId, month);
-    $('#invoice-output').innerHTML = html;
-    state.lastInvoiceHTML = html;
-    dlBtn.disabled = printBtn.disabled = false;
-    if (ids.length) {
-      ids.forEach(id => { const e = state.entries.find(x => x.id === id); if (e) e.status = 'invoiced'; });
-      saveEntries();
-      toast(`Invoice generated — ${ids.length} entries marked as invoiced`);
-    }
+    previewInvoice(clientId, month);
   });
   dlBtn.addEventListener('click', downloadInvoice);
   printBtn.addEventListener('click', printInvoice);
 }
 
-function generateInvoice(clientId, month) {
+function buildInvoiceHTML(clientId, month, invNum) {
   const client = (state.data.clients || []).find(c => c.id === clientId);
   if (!client) return { html: '<p>Client not found.</p>', ids: [] };
 
@@ -549,7 +651,6 @@ function generateInvoice(clientId, month) {
   approved.forEach(e => (byConsultant[e.user_email] = byConsultant[e.user_email] || []).push(e));
 
   const settings   = state.data.settings || {};
-  const invNum     = nextInvoiceNumber();
   const monthLabel = new Date(year, mon - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
   let grandTotal   = 0;
   let rows         = '';
@@ -571,11 +672,22 @@ function generateInvoice(clientId, month) {
     });
   });
 
+  const logoHtml = settings.logo_url
+    ? `<img src="${escHtml(settings.logo_url)}" style="height:48px;margin-bottom:8px" alt="logo"><br>`
+    : '';
+
+  const paymentNotesHtml = settings.payment_notes
+    ? `<div style="margin-top:16px;padding:12px;border:1px solid #1E3A30;border-radius:8px">
+        <strong style="color:#D9C7A0">Payment Instructions</strong>
+        <p style="color:#A6B2AD;font-size:13px;margin:8px 0 0">${escHtml(settings.payment_notes)}</p>
+       </div>`
+    : '';
+
   const html = `
     <div style="border:1px solid #1E3A30;border-radius:14px;padding:24px;margin-top:16px">
       <div style="display:flex;justify-content:space-between;margin-bottom:24px">
         <div>
-          <h2 style="margin:0">${escHtml(settings.company_name || 'Halifax Time')}</h2>
+          ${logoHtml}<h2 style="margin:0">${escHtml(settings.company_name || 'Halifax Time')}</h2>
           <p style="color:#A6B2AD;margin:4px 0">Invoice #${invNum} &mdash; ${monthLabel}</p>
         </div>
         <div style="text-align:right">
@@ -599,10 +711,71 @@ function generateInvoice(clientId, month) {
       <div style="text-align:right;margin-top:16px;font-size:18px">
         <strong>Total: $${grandTotal.toFixed(2)} ${escHtml(settings.currency || 'USD')}</strong>
       </div>
+      ${paymentNotesHtml}
       <p style="color:#A6B2AD;font-size:12px;margin-top:16px">Terms: ${escHtml(client.terms)}</p>
     </div>`;
 
   return { html, ids: approved.map(e => e.id) };
+}
+
+function previewInvoice(clientId, month) {
+  const { html, ids } = buildInvoiceHTML(clientId, month, 'PREVIEW');
+  $('#invoice-output').innerHTML = html;
+  state.lastInvoiceHTML = html;
+
+  const dlBtn = $('#dl-invoice'), printBtn = $('#print-invoice');
+  dlBtn.disabled = printBtn.disabled = false;
+
+  if (!ids.length) {
+    $('#invoice-confirm').innerHTML = '';
+    $('#invoice-confirm').classList.add('hidden');
+    state.pendingInvoice = null;
+    return;
+  }
+
+  state.pendingInvoice = { clientId, month, ids };
+  const nextNum = peekInvoiceNumber();
+
+  const confirmDiv = $('#invoice-confirm');
+  confirmDiv.innerHTML = `
+    <div class="invoice-confirm-bar">
+      <span style="flex:1;color:#A6B2AD">${ids.length} entr${ids.length === 1 ? 'y' : 'ies'} ready to invoice &mdash; next invoice number: <strong style="color:#D9C7A0">#${nextNum}</strong></span>
+      <button class="primary" onclick="finalizeInvoice()">Finalize Invoice #${nextNum}</button>
+      <button class="ghost" onclick="cancelInvoicePreview()">Cancel</button>
+    </div>`;
+  confirmDiv.classList.remove('hidden');
+}
+
+function finalizeInvoice() {
+  if (!state.pendingInvoice) return;
+  const { clientId, month, ids } = state.pendingInvoice;
+  const invNum = nextInvoiceNumber();
+  const { html } = buildInvoiceHTML(clientId, month, invNum);
+
+  $('#invoice-output').innerHTML = html;
+  state.lastInvoiceHTML = html;
+
+  ids.forEach(id => {
+    const e = state.entries.find(x => x.id === id);
+    if (e) e.status = 'invoiced';
+  });
+  saveEntries();
+
+  state.pendingInvoice = null;
+  $('#invoice-confirm').innerHTML = '';
+  $('#invoice-confirm').classList.add('hidden');
+
+  toast(`Invoice #${invNum} generated — ${ids.length} entries marked as invoiced`);
+}
+
+function cancelInvoicePreview() {
+  state.pendingInvoice = null;
+  $('#invoice-output').innerHTML = '';
+  state.lastInvoiceHTML = null;
+  $('#invoice-confirm').innerHTML = '';
+  $('#invoice-confirm').classList.add('hidden');
+  $('#dl-invoice').disabled = true;
+  $('#print-invoice').disabled = true;
 }
 
 function getRate(email, clientId) {
@@ -996,7 +1169,7 @@ function renderSettingsTab() {
           ${['Sunday','Saturday','Friday'].map(d=>`<option${d===s.week_ending?' selected':''}>${d}</option>`).join('')}
         </select></div>
       </div>
-      <div class="grid-2" style="margin-bottom:16px">
+      <div class="grid-2" style="margin-bottom:12px">
         <div><label>Timezone</label><select id="st-tz">
           ${timezones.map(tz=>`<option${tz===s.timezone?' selected':''}>${tz}</option>`).join('')}
         </select></div>
@@ -1004,8 +1177,17 @@ function renderSettingsTab() {
           ${['USD','CAD','EUR','GBP','AUD'].map(c=>`<option${c===s.currency?' selected':''}>${c}</option>`).join('')}
         </select></div>
       </div>
+      <div style="margin-bottom:12px"><label>Company Logo URL</label><input id="st-logo" value="${escHtml(s.logo_url||'')}" placeholder="https://..."></div>
+      <div style="margin-bottom:16px"><label>Payment Notes</label><textarea id="st-payment-notes" rows="3" placeholder="Payment instructions for invoices...">${escHtml(s.payment_notes||'')}</textarea></div>
       <button class="primary" onclick="saveSettings()">Save Settings</button>
+      <div style="margin-top:16px;display:flex;gap:8px">
+        <button class="ghost" onclick="exportAllData()">Export Backup</button>
+        <button class="ghost" onclick="triggerImport()">Import Backup</button>
+        <input type="file" id="import-file-input" accept=".json" style="display:none">
+      </div>
     </div>`;
+
+  document.getElementById('import-file-input')?.addEventListener('change', handleImportFile);
 }
 
 function saveSettings() {
@@ -1015,9 +1197,68 @@ function saveSettings() {
     rounding_minutes: parseInt($('#st-round').value, 10),
     week_ending:      $('#st-weekend').value,
     timezone:         $('#st-tz').value,
-    currency:         $('#st-currency').value
+    currency:         $('#st-currency').value,
+    logo_url:         $('#st-logo').value.trim(),
+    payment_notes:    $('#st-payment-notes').value.trim()
   };
   saveAdminData(); toast('Settings saved');
+}
+
+// ─── Data Export / Import ─────────────────────────────────────────────────────
+
+function exportAllData() {
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10);
+  const payload = {
+    version: 1,
+    exported_at: now.toISOString(),
+    entries: state.entries,
+    admin: {
+      clients:  state.data.clients,
+      users:    state.data.users,
+      rates:    state.data.rates,
+      settings: state.data.settings
+    },
+    invoice_counter: parseInt(localStorage.getItem(STORAGE_KEY_INV_NUM) || '1000', 10)
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `halifax-time-backup-${dateStr}.json`;
+  a.click();
+  toast('Backup exported');
+}
+
+function triggerImport() {
+  const input = document.getElementById('import-file-input');
+  if (input) input.click();
+}
+
+function handleImportFile(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!data.version || !data.entries || !data.admin) return alert('Invalid backup file.');
+      const exportedAt = data.exported_at ? new Date(data.exported_at).toLocaleString() : 'unknown date';
+      if (!confirm(`Import backup from ${exportedAt}? This will overwrite all current data.`)) return;
+
+      localStorage.setItem(STORAGE_KEY_ENTRIES, JSON.stringify(data.entries));
+      localStorage.setItem(STORAGE_KEY_ADMIN, JSON.stringify(data.admin));
+      if (data.invoice_counter !== undefined) {
+        localStorage.setItem(STORAGE_KEY_INV_NUM, String(data.invoice_counter));
+      }
+      toast('Backup imported — reloading...');
+      setTimeout(() => location.reload(), 1500);
+    } catch (err) {
+      alert('Failed to parse backup file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  // Reset input so the same file can be re-selected if needed
+  e.target.value = '';
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -1057,6 +1298,7 @@ function init() {
   $('#cancel-stop').addEventListener('click', closeStopModal);
   $('#man-add').addEventListener('click', addManualEntry);
   $('#ts-period')?.addEventListener('change', renderTimesheet);
+  $('#ts-submit')?.addEventListener('click', submitDrafts);
   $('#rpt-go')?.addEventListener('click', renderReports);
   $('#rpt-csv')?.addEventListener('click', exportCSV);
   $('#admin-modal-save').addEventListener('click', () => adminModalSaveCallback?.());
