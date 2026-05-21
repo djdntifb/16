@@ -61,7 +61,7 @@
         <div id="timer-display" class="timer">00:00:00</div>
       </div>
       <div class="actions">
-        <button id="start-stop-btn" class="primary">Start</button>
+        <div style="display:flex;align-items:center"><button id="start-stop-btn" class="primary">Start</button><span class="kbd-hint">Space</span></div>
       </div>
     </div>
 
@@ -105,6 +105,7 @@
           <option value="last_month">Last Month</option>
           <option value="all">All Time</option>
         </select>
+        <button id="ts-submit" class="primary hidden" style="white-space:nowrap">Submit Drafts</button>
       </div>
     </div>
     <table class="table" id="timesheet-table">
@@ -152,6 +153,7 @@
       </div>
     </div>
     <div id="invoice-output"></div>
+    <div id="invoice-confirm" class="hidden"></div>
   </section>
 
   <!-- Reports -->

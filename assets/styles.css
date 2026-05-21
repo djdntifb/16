@@ -205,6 +205,7 @@ label {
   font-weight: 600;
 }
 
+.badge.draft    { background: #2A2A1B33; color: #C8C890; border: 1px solid #4A4A1B; }
 .badge.pending  { background: #8C6B2E33; color: #FFDFA3; border: 1px solid #8C6B2E; }
 .badge.approved { background: #1B4D3033; color: #6FCFA0; border: 1px solid #1B4D30; }
 .badge.invoiced { background: #1B2E4D33; color: #7AB8F5; border: 1px solid #1B3A6B; }
@@ -334,4 +335,52 @@ label {
 @keyframes toast-in {
   from { transform: translateX(100%); opacity: 0; }
   to   { transform: translateX(0);    opacity: 1; }
+}
+
+/* ── Keyboard hint ── */
+
+.kbd-hint {
+  font-size: 11px;
+  color: #A6B2AD;
+  border: 1px solid #1E3A30;
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* ── Invoice confirm bar ── */
+
+.invoice-confirm-bar {
+  background: #0B1714;
+  border: 1px solid #1E3A30;
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 768px) {
+  .login-grid { grid-template-columns: 1fr; }
+  .grid-3     { grid-template-columns: 1fr; }
+  .grid-4     { grid-template-columns: 1fr 1fr; }
+  .filter-bar { flex-direction: column; }
+  .nav        { gap: 4px; flex-wrap: wrap; }
+  .nav button { padding: 6px 8px; font-size: 13px; }
+  .nav-user   { display: none; }
+  .timer      { font-size: 26px; }
+  .panel      { margin: 8px; padding: 14px; }
+  .summary-cards { flex-direction: column; }
+  .modal      { align-items: flex-end; padding: 0; }
+  .modal-card, .modal-card.wide { border-radius: 14px 14px 0 0; max-width: 100%; }
+  .view-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+}
+
+@media (max-width: 480px) {
+  .grid-4 { grid-template-columns: 1fr; }
 }
