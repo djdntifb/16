@@ -1,5 +1,8 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .routers import auth, clients, entries, invoices, rates, reports, settings as settings_router, users
@@ -22,3 +25,8 @@ for router in [auth.router, entries.router, clients.router, users.router,
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+CLIENT_DIR = Path(__file__).parent.parent.parent / "client"
+if CLIENT_DIR.exists():
+    app.mount("/", StaticFiles(directory=CLIENT_DIR, html=True), name="static")
