@@ -61,6 +61,8 @@ def list_entries(
 def create_entry(body: TimeEntryCreate, user: CurrentUser, db: DB):
     if body.end_time <= body.start_time:
         raise HTTPException(status_code=400, detail="End time must be after start time")
+    if not body.allow_overlap and _check_overlap(db, user.id, body.date, body.start_time, body.end_time):
+        raise HTTPException(status_code=409, detail="Time entry overlaps an existing entry")
     raw_hours = (body.end_time.hour * 60 + body.end_time.minute - body.start_time.hour * 60 - body.start_time.minute) / 60
     hours = _round_hours(raw_hours, db)
     entry = TimeEntry(
@@ -94,6 +96,8 @@ def update_entry(entry_id: uuid.UUID, body: TimeEntryUpdate, user: CurrentUser, 
         entry.description = body.description
     if entry.end_time <= entry.start_time:
         raise HTTPException(status_code=400, detail="End time must be after start time")
+    if not body.allow_overlap and _check_overlap(db, entry.user_id, entry.date, entry.start_time, entry.end_time, exclude_id=entry_id):
+        raise HTTPException(status_code=409, detail="Time entry overlaps an existing entry")
     raw_hours = (entry.end_time.hour * 60 + entry.end_time.minute - entry.start_time.hour * 60 - entry.start_time.minute) / 60
     entry.hours = _round_hours(raw_hours, db)
     db.commit()

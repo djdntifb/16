@@ -120,6 +120,7 @@ class TimeEntryCreate(BaseModel):
     start_time: time
     end_time: time
     description: str
+    allow_overlap: bool = False
 
 
 class TimeEntryUpdate(BaseModel):
@@ -128,6 +129,7 @@ class TimeEntryUpdate(BaseModel):
     start_time: time | None = None
     end_time: time | None = None
     description: str | None = None
+    allow_overlap: bool = False
 
 
 # ── Invoices ──────────────────────────────────────────────────────────────────

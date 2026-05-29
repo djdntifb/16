@@ -90,6 +90,7 @@ function show(v) {
   if (v === 'approvals') renderApprovals();
   if (v === 'reports')   renderReports();
   if (v === 'admin')     renderAdmin();
+  if (v === 'invoices')  renderInvoiceHistory();
 }
 
 function updateNav(role) {
@@ -237,17 +238,20 @@ async function saveStop() {
   const startStr = tzTime(start);
   const endStr   = tzTime(end);
 
+  let allowOverlap = false;
   if (hasOverlap(date, startStr, endStr, null)) {
     if (!confirm(`This overlaps an existing entry on ${date}. Save anyway?`)) return;
+    allowOverlap = true;
   }
 
   try {
     const entry = await api('POST', '/api/entries', {
-      client_id:   state.timer.clientId,
+      client_id:     state.timer.clientId,
       date,
-      start_time:  startStr,
-      end_time:    endStr,
-      description: note,
+      start_time:    startStr,
+      end_time:      endStr,
+      description:   note,
+      allow_overlap: allowOverlap,
     });
 
     const rawH  = (timeToMs(endStr) - timeToMs(startStr)) / 3600000;
@@ -330,8 +334,10 @@ async function addManualEntry() {
   if (!note) return alert('Please enter a description.');
   if (timeToMs(end) <= timeToMs(start)) return alert('End time must be after start time.');
 
+  let allowOverlap = false;
   if (hasOverlap(date, start, end, null)) {
     if (!confirm(`This overlaps an existing entry on ${date}. Save anyway?`)) return;
+    allowOverlap = true;
   }
 
   const rawH = (timeToMs(end) - timeToMs(start)) / 3600000;
@@ -339,6 +345,7 @@ async function addManualEntry() {
   try {
     const entry = await api('POST', '/api/entries', {
       client_id: clientId, date, start_time: start, end_time: end, description: note,
+      allow_overlap: allowOverlap,
     });
 
     const hours = parseFloat(entry.hours);
@@ -475,12 +482,15 @@ function openEditEntry(id) {
     if (!date || !start || !end || !clientId) return alert('Please fill in all fields.');
     if (!desc) return alert('Please enter a description.');
     if (timeToMs(end) <= timeToMs(start)) return alert('End time must be after start time.');
+    let allowOverlap = false;
     if (hasOverlap(date, start, end, id)) {
       if (!confirm(`This overlaps an existing entry on ${date}. Save anyway?`)) return;
+      allowOverlap = true;
     }
 
     const updated = await api('PUT', `/api/entries/${id}`, {
       client_id: clientId, date, start_time: start, end_time: end, description: desc,
+      allow_overlap: allowOverlap,
     });
 
     const idx = state.timesheetEntries.findIndex(e => e.id === id);
@@ -784,6 +794,43 @@ function cancelInvoicePreview() {
   $('#invoice-confirm').innerHTML = '';
   $('#invoice-confirm').classList.add('hidden');
   $('#dl-invoice').disabled = $('#print-invoice').disabled = true;
+}
+
+async function renderInvoiceHistory() {
+  const el = $('#invoice-history');
+  if (!el) return;
+  el.innerHTML = '<p style="color:#A6B2AD;font-size:13px">Loading invoice history…</p>';
+  try {
+    const invoices = await api('GET', '/api/invoices');
+    if (!invoices.length) {
+      el.innerHTML = '<p style="color:#A6B2AD;font-size:13px">No invoices yet.</p>';
+      return;
+    }
+    const rows = invoices.map(inv => {
+      const total = parseFloat(inv.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const created = new Date(inv.created_at).toLocaleDateString();
+      return `<tr>
+        <td>#${inv.number}</td>
+        <td>${escHtml(inv.client.name)}</td>
+        <td>${inv.period_start} – ${inv.period_end}</td>
+        <td style="text-align:right">$${total}</td>
+        <td>${escHtml(inv.creator.name)}</td>
+        <td>${created}</td>
+      </tr>`;
+    }).join('');
+    el.innerHTML = `
+      <h3 style="margin-bottom:12px">Invoice History</h3>
+      <table class="table">
+        <thead><tr>
+          <th>#</th><th>Client</th><th>Period</th>
+          <th style="text-align:right">Total</th>
+          <th>Created By</th><th>Date</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  } catch (e) {
+    el.innerHTML = `<p style="color:#E07070;font-size:13px">${escHtml(e.message)}</p>`;
+  }
 }
 
 function downloadInvoice() {

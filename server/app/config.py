@@ -15,3 +15,11 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+import os as _os
+if settings.secret_key == "dev-secret-key-change-in-production" and not _os.getenv("ALLOW_DEV_SECRET"):
+    raise RuntimeError(
+        "SECRET_KEY is still the dev default. "
+        "Set a random SECRET_KEY in your .env, "
+        "or set ALLOW_DEV_SECRET=1 for local dev."
+    )
