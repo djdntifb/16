@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Halifax Time</title>
+  <link rel="icon" type="image/svg+xml" href="./assets/logo.svg">
+  <link rel="stylesheet" href="./assets/styles.css">
+</head>
+<body>
+
+<header class="shell topbar">
+  <img src="./assets/logo.svg" style="height:40px" alt="logo">
+  <nav id="nav" class="nav hidden">
+    <button data-view="timer">Timer</button>
+    <button data-view="timesheet">Timesheet</button>
+    <button data-view="reports">Reports</button>
+    <button data-view="approvals">Approvals</button>
+    <button data-view="invoices">Invoices</button>
+    <button data-view="admin">Admin</button>
+    <button id="logout" class="danger">Logout</button>
+    <span id="active-user" class="nav-user"></span>
+  </nav>
+</header>
+
+<main class="shell">
+
+  <!-- Login -->
+  <section id="login-view" class="panel">
+    <h1>Welcome</h1>
+    <div class="login-grid">
+      <div>
+        <label>Email</label>
+        <input id="email" type="email" value="alex.morgan@example.com">
+      </div>
+      <div>
+        <label>Password</label>
+        <input id="password" type="password" value="demo123">
+      </div>
+      <button id="login-btn" class="primary">Sign in</button>
+    </div>
+    <div class="demo-hint">
+      Demo only &mdash;
+      Admin: alex.morgan@example.com / demo123 &bull;
+      Manager: jordan.lee@example.com / demo123 &bull;
+      Consultant: taylor.reed@example.com / demo123
+    </div>
+  </section>
+
+  <!-- Timer -->
+  <section id="timer-view" class="panel hidden">
+    <h2>Timer</h2>
+
+    <div id="resume-banner" class="banner-warn hidden"></div>
+
+    <div class="grid-3">
+      <div>
+        <label>Client</label>
+        <select id="client-select"></select>
+      </div>
+      <div>
+        <div id="timer-display" class="timer">00:00:00</div>
+      </div>
+      <div class="actions">
+        <div style="display:flex;align-items:center"><button id="start-stop-btn" class="primary">Start</button><span class="kbd-hint">Space</span></div>
+      </div>
+    </div>
+
+    <h3>Manual Entry</h3>
+    <div id="manual-running-note" class="banner-warn hidden">
+      Stop the running timer before adding a manual entry.
+    </div>
+    <div class="grid-4">
+      <div>
+        <label>Date</label>
+        <input type="date" id="man-date">
+      </div>
+      <div>
+        <label>Start</label>
+        <input type="time" id="man-start">
+      </div>
+      <div>
+        <label>End</label>
+        <input type="time" id="man-end">
+      </div>
+      <div>
+        <label>Client</label>
+        <select id="man-client"></select>
+      </div>
+    </div>
+    <label style="margin-top:12px">Description</label>
+    <textarea id="man-note" rows="3" placeholder="Brief description of work performed"></textarea>
+    <div class="actions" style="margin-top:8px">
+      <button id="man-add" class="ghost">Add Time</button>
+    </div>
+  </section>
+
+  <!-- Timesheet -->
+  <section id="timesheet-view" class="panel hidden">
+    <div class="view-header">
+      <h2>Timesheet</h2>
+      <div class="actions">
+        <select id="ts-period" style="width:auto">
+          <option value="week">This Week</option>
+          <option value="month" selected>This Month</option>
+          <option value="last_month">Last Month</option>
+          <option value="all">All Time</option>
+        </select>
+        <button id="ts-submit" class="primary hidden" style="white-space:nowrap">Submit Drafts</button>
+      </div>
+    </div>
+    <table class="table" id="timesheet-table">
+      <thead>
+        <tr>
+          <th>Date</th><th>Client</th><th>Start</th><th>End</th>
+          <th>Hours</th><th>Status</th><th>Description</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+      <tfoot></tfoot>
+    </table>
+  </section>
+
+  <!-- Approvals -->
+  <section id="approvals-view" class="panel hidden">
+    <h2>Weekly Approvals</h2>
+    <table class="table" id="approvals-table">
+      <thead>
+        <tr>
+          <th>User</th><th>Date</th><th>Client</th><th>Hours</th>
+          <th>Description</th><th>Status</th><th>Action</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- Invoices -->
+  <section id="invoices-view" class="panel hidden">
+    <h2>Invoices</h2>
+    <div class="grid-3">
+      <div>
+        <label>Client</label>
+        <select id="invoice-client"></select>
+      </div>
+      <div>
+        <label>Month</label>
+        <input id="invoice-month" type="month">
+      </div>
+      <div class="actions">
+        <button id="gen-invoice"   class="primary" disabled>Generate</button>
+        <button id="dl-invoice"    class="ghost"   disabled>Download</button>
+        <button id="print-invoice" class="ghost"   disabled>Print to PDF</button>
+      </div>
+    </div>
+    <div id="invoice-output"></div>
+    <div id="invoice-confirm" class="hidden"></div>
+    <div id="invoice-history" style="margin-top:32px"></div>
+  </section>
+
+  <!-- Reports -->
+  <section id="reports-view" class="panel hidden">
+    <h2>Reports</h2>
+    <div class="filter-bar">
+      <div>
+        <label>Period</label>
+        <select id="rpt-period">
+          <option value="week">This Week</option>
+          <option value="month" selected>This Month</option>
+          <option value="last_month">Last Month</option>
+          <option value="all">All Time</option>
+        </select>
+      </div>
+      <div>
+        <label>Client</label>
+        <select id="rpt-client">
+          <option value="">All Clients</option>
+        </select>
+      </div>
+      <div>
+        <label>Status</label>
+        <select id="rpt-status">
+          <option value="">All</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="invoiced">Invoiced</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+      <div class="actions" style="align-self:flex-end">
+        <button id="rpt-go"  class="primary">Run</button>
+        <button id="rpt-csv" class="ghost">Export CSV</button>
+      </div>
+    </div>
+    <div id="rpt-summary"></div>
+    <div id="rpt-table-wrap"></div>
+  </section>
+
+  <!-- Admin -->
+  <section id="admin-view" class="panel hidden">
+    <h2>Administration</h2>
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="clients">Clients</button>
+      <button class="tab-btn" data-tab="users">Users</button>
+      <button class="tab-btn" data-tab="rates">Rates</button>
+      <button class="tab-btn" data-tab="settings">Settings</button>
+    </div>
+    <div id="tab-clients"  class="tab-pane"></div>
+    <div id="tab-users"    class="tab-pane hidden"></div>
+    <div id="tab-rates"    class="tab-pane hidden"></div>
+    <div id="tab-settings" class="tab-pane hidden"></div>
+  </section>
+
+</main>
+
+<!-- Stop Timer Modal -->
+<div id="stop-modal" class="modal hidden">
+  <div class="modal-card" id="stop-modal-card">
+    <h3>Stop Timer &mdash; Add Work Description</h3>
+    <textarea id="work-note" rows="4" placeholder="Brief description of work performed..."></textarea>
+    <div class="actions" style="justify-content:flex-end;margin-top:12px">
+      <button id="cancel-stop"  class="ghost">Cancel</button>
+      <button id="confirm-stop" class="primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Admin Modal -->
+<div id="admin-modal" class="modal hidden">
+  <div class="modal-card wide" id="admin-modal-card">
+    <h3 id="admin-modal-title"></h3>
+    <div id="admin-modal-body"></div>
+    <div class="actions" style="justify-content:flex-end;margin-top:16px">
+      <button id="admin-modal-cancel" class="ghost">Cancel</button>
+      <button id="admin-modal-save"   class="primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="./assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+.claude/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# Env files — never commit real secrets
+server/.env
+.env
+
+# Alembic generated (keep versions/ in git but not cache)
+alembic/__pycache__/
