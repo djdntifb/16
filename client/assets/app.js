@@ -30,7 +30,13 @@ async function api(method, path, body) {
   });
   if (res.status === 204) return null;
   const data = await res.json();
-  if (!res.ok) throw Object.assign(new Error(data.detail || 'Request failed'), { status: res.status });
+  if (!res.ok) {
+    if (res.status === 401 && path !== '/api/auth/login') {
+      logout();
+      return;
+    }
+    throw Object.assign(new Error(data.detail || 'Request failed'), { status: res.status });
+  }
   return data;
 }
 
